@@ -1,0 +1,240 @@
+---
+title: "5-Naive Bayes"
+output:
+  pdf_document: default
+  html_notebook:
+    highlight: textmate
+    theme: cerulean
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+dir.create("images")
+```
+
+***
+
+# Naive Bayes
+
+This code illustrates the Naive Bayes Model.
+
+We will use the e1070 package.
+```{r}
+library(caret)
+library(ISLR)
+#install.packages("e1071") #install first
+library(e1071)  
+
+summary(UniversalBank)
+```
+
+Clean the data, and divide into training and test
+```{r}
+
+MyData<-UniversalBank
+
+set.seed(123)
+#Divide data into test and train
+Index_Train<- createDataPartition(MyData$Online, p=0.6, list=FALSE) #60% FOR TRAINING
+Train <-MyData[Index_Train,]
+Test  <-MyData[-Index_Train,]
+```
+
+
+
+A. Create a pivot table
+```{r}
+#Create pivot table
+#install.packages("reshape2")
+#install.packages("reshape")
+library(reshape2)
+library(reshape)
+library(stringr)
+
+prop.table(table(UniversalBank$Online, UniversalBank$CreditCard))
+head(UniversalBank$Online, n=100)
+head(UniversalBank$CreditCard, n=100)
+
+
+```
+B.There is a 17% loan acceptance chance
+
+
+C. Create two separate pivot tables 
+```{r}
+#Create two separate pivot tables 
+#First table is Loan as a function of Online
+names(UniversalBank) <- str_replace_all(names(UniversalBank), c(" " = "."))
+
+
+melted.ubank1 = melt (train, id=c("Personal.Loan"), variable = "Online")
+
+#Second table is Loan as a function of CC
+melted.ubank2 = melt(train, id=c("CreditCard"), variable ="Online")
+
+
+recast.ubank1 = dcast(melted.ubank1, Personal.Loan~Online)
+recast.ubank2 = dcast(melted.ubank2, CreditCard~CreditCard)
+Loanline = recast.ubank1 [,c(1,13)]
+LoanCC = recast.ubank2 [,c(1,14)]
+
+Loanline
+LoanCC
+```
+
+
+D. Compute the following quantities [P (A|B) means "the probability of A given B]
+```{r}
+table(Train[,c(14,10)])
+
+
+
+
+
+table(Train[,c(13,10)])
+
+
+table(Train[,c(10)])
+
+```
+i.91/ (91+187) = 32.73%
+ii.179 +(179+99) = 64.38%
+iii.278 + (278+2722) = 9.26%
+iv.792 + (792+1930) = 29.09%
+v. 1620 + (1620+ 1102) = 59.51%
+vi. 2722 + (2722 +278) = 90.73%
+
+
+E. Use the quantities computed above to compute the naive Bayers probability
+```{r}
+
+((91/(91+187))*(179/(179+99))*(278/(278+2722)))/(((91/(91+187))*(179/(179+99))*(278/(278+2722)))+((792/(792+1930))*(1620/(1620+1102))*2722/(2722+278)))
+
+
+```
+
+
+
+
+
+F. Compare this value with the one obtained from pivot table in B. Which is a more accurate estimate?
+- The Naive Bayers method is much more accurate since it only needed a few specific categories to learn the data, while the one from B had to derive a huge amount before being able to estimate.
+
+
+
+G. Which of the entries in this table are needed for computing P (Loan = 1 | CC = 1, Online = 1)? In R, run naive Bayes on the data. Examine the model output on training data, and find the entry that corresponds to P (Loan = 1 | CC = 1, Online = 1). Compare this to the number you obtained in E.
+
+Now, run the Naive Bayes model, and predict UniversalBank status on the test set.
+```{r}
+# Build a naïve Bayes classifier
+str(MyData)
+
+Train2 = Train[,c(10,13:14)]
+Test2 = Test[,c(10,13:14)]
+nb_model <- naiveBayes(Personal.Loan~.,data =Train2)
+nb_model
+```
+
+Calculation: (.3273)(.6438)(.0926)/(.3273)(6438)(0926)+(.2909)(.5951)(.9073)= .1105
+The output is the same as in E.
+
+
+
+Now, use the model on the test set
+```{r}
+# Predict the UniversalBank status of test dataset 
+Predicted_Test_labels <-predict(nb_model,Test)
+
+library("gmodels")
+
+# Show the confusion matrix of the classifier
+data(UniversalBank,package ="datasets" )
+CrossTable(UniversalBank$Online,UniversalBank$Personal.Loan, prop.chisq = FALSE) 
+```
+
+
+
+***
+
+It is sometimes useful to output the raw prediction probabilities rather than the predicted class. To do that, we use the raw option in the model.
+```{r}
+nb_model <- naiveBayes(Personal.Loan~.,data =Train2)
+
+
+#Make predictions and return probability of each class
+Predicted_Test_labels <-predict(nb_model,Test, type = "raw")
+
+#show the first few values 
+head(Predicted_Test_labels)
+
+```
+
+***
+
+## ROC Curves
+
+
+```{r}
+#install.packages("pROC") # install if necessary
+library(pROC)
+
+#Passing the second column of the predicted probabilities 
+#That column contains the probability associate to ‘yes’
+roc(MyData$Personal.Loan, Predicted_Test_labels)
+plot.roc(MyData$Personal.Loan,Predicted_Test_labels)
+```
+
+
+***
+
+# Box-Cox Transformation
+
+We first illustrate the transformation of data using the Box-Cox transformation approach
+```{r}
+library(ISLR)
+library(caret)
+#Create a Box-Cox Transformation Model
+Box_Cox_Transform<-preProcess(UniversalBank[13:14],method = "BoxCox")
+Box_Cox_Transform
+```
+ Now, we apply the transformation
+```{r}
+UniversalBank_Transformed=predict(Box_Cox_Transform,UniversalBank)
+y <- UniversalBank_Transformed$Personal.Loan
+h<-hist(y, breaks=10, col="pink", xlab="Online",
+   main="Histogram before Transformation")
+xfit<-seq(min(y),max(y),length=40)
+yfit<-dnorm(xfit,mean=mean(y),sd=sd(y))
+yfit <- yfit*diff(h$mids[1:5])*length(y)
+lines(xfit, yfit, col="purple", lwd=2) 
+```
+
+***
+
+## Hypertuning
+
+```{r}
+library(caret)
+library(ISLR)
+
+
+MyData<-UniversalBank
+
+set.seed(123)
+#Divide data into test and train
+Index_Train<-createDataPartition(MyData$CreditCard, p=0.6, list=FALSE) #60% for training
+Train <-MyData[Index_Train,]
+Test  <-MyData[-Index_Train,]
+
+
+nb_model <- train(Personal.Loan~.,data =Train2, preProc = c("BoxCox", "center", "scale"))
+# Predict the UniversalBank status of test dataset 
+Predicted_Test_labels <-predict(nb_model,Test)
+
+library("gmodels")
+
+# Show the confusion matrix of the classifier
+CrossTable(UniversalBank$Online,UniversalBank$Personal.Loan, prop.chisq = FALSE) 
+```
