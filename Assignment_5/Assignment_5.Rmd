@@ -1,0 +1,156 @@
+---
+title: "8-  Hierarchical Clustering"
+author: "Allex Belostrino"
+date: "11/25/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Read the data
+
+```{r}
+#install.packages("tidyverse")
+#install.packages("readr")
+Cereals <- read.csv("/Users/allexnicolebelostrino/Desktop/Assignment_5/Cereals.csv")
+
+#Remove cereals with missing values
+Cereals <- na.omit(Cereals)
+head(Cereals)
+summary(Cereals)
+```
+
+After cleaning the data, we see that there were three cereals with missing values. Therefore, giving us a remaining 74 cereals from the original 77.
+
+Use dataset only with numerical variables and standardize
+
+```{r}
+numeric_cereal <- Cereals[,c(4:16)]
+scaled_numeric_cereal <- scale(numeric_cereal)
+
+```
+
+Compute Euclidean distance
+
+```{r}
+d <- dist(Cereals, method = "euclidean")
+
+```
+
+```{r}
+# normalize input variables
+Cereals.norm <- sapply(Cereals[,c(4:16)], scale)
+
+# add row names: cereals
+row.names(Cereals.norm) <- row.names(Cereals) 
+
+
+```
+
+```{r}
+#install.packages(stats)
+#compute normalized distance based on all variables
+Cereals.norm <- dist(Cereals.norm, method = "euclidean")
+
+# in hclust() set argument method =  
+# to "ward.D", "single", "complete", "average"
+hc1 <- hclust(Cereals.norm, method = "single")
+plot(hc1, hang = -1, ann = FALSE)
+hc2 <- hclust(Cereals.norm, method = "average")
+plot(hc2, hang = -1, ann = FALSE)
+hc3 <- hclust(Cereals.norm, method = "complete")
+plot(hc3, hang = -1, ann =FALSE)
+hc4 <- hclust(Cereals.norm, method = "ward.D")
+plot(hc4, hang = -1, ann= FALSE)
+```
+
+Use AGNES to compare the clusters
+
+```{r}
+#install.packages(cluster)
+library(cluster)
+
+#Compute with AGNES and different linkage methods
+hc_single <- agnes(Cereals, method ="single")
+hc_average <- agnes(Cereals, method ="average")
+hc_complete <- agnes(Cereals, method ="complete")
+hc_ward <- agnes(Cereals, method = "ward")
+
+#Compare agglomerative coefficients
+print(hc_single$ac)
+print(hc_average$ac)
+print(hc_complete$ac)
+print(hc_ward$ac)
+
+
+pltree(hc_single, cex = 0.6, hang =-1 , main = "Dendrogram of Agnes")
+pltree(hc_average, cex = 0.6, hang =-1 , main = "Dendrogram of Agnes")
+pltree(hc_complete, cex = 0.6, hang =-1 , main = "Dendrogram of Agnes")
+pltree(hc_ward, cex = 0.6, hang =-1 , main = "Dendrogram of Agnes")
+```
+
+The best method is the Ward method as is the strongest clustering structure.
+
+Cutting dendrograms 
+```{r}
+#single linkage. Height is based off of 80. Therefore, we will choose to have 2 clusters
+memb <- cutree(hc1, k = 2)
+memb
+```
+
+```{r}
+#average linkage. Height is based off of 150. Therefore we will choose to have 4 clusters
+memb <- cutree(hc2, k = 4)
+memb
+
+```
+
+```{r}
+#complete linkage. Height is based off of 200. Therefore, we will choose to have 5 clusters
+memb <- cutree(hc3, k = 5)
+memb
+```
+
+```{r}
+#ward. Height is based off of 600. Therefore, we will choose to have 3 clusters.
+memb <- cutree(hc4, k = 7)
+memb
+```
+
+
+Comment on the structure of the clusters and on their stability
+```{r}
+#install.packages("caret")
+library(caret)
+#Combine cluster from question 1
+NewCereal <- rbind(hc1,hc2,hc3,hc4)
+
+#Making partitions
+set.seed(123)
+PartA <- sample(nrow(Cereals.norm), replace = TRUE)
+PartB <- 3 - PartA
+
+#Fitting PartA cluster
+clusterA <- cutree(hc_ward, k = 7)
+
+#Assign PartA centroids to PartB
+clusterB <- cutree(hc_ward, newdata = Cereals.norm[PartB, ] )
+
+#Assess consistency
+consistency <- sum(PartA == clusterB) / length(clusterB)
+```
+
+
+
+The elementary public schools would like to choose a set of cereals to include in their daily cafeterias. Find a cluster of "healthy cereals." Should the data be normalized? Which cluster is doing great on healthy cereals?
+
+```{r}
+
+#list of characteristics
+healthy.cereals <- NewCereal[which(NewCereal$calories < 50 & NewCereal$protein > 4 & NewCereal$fat < 2 & NewCereal$fiber > 3 & NewCereal$carbo < 15 & NewCereal$sugar < 8 & NewCereal$potass > 100 & NewCereal$vitamins > 25)]
+
+
+```
+Normalization is needed since there is a range of characteristics needed to determine healthy cereals.
