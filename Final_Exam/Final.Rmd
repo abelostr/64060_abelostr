@@ -1,0 +1,173 @@
+---
+title: "Final Exam by Allex Nicole Belostrino"
+output: html_document
+date: "2023-12-09"
+---
+
+Import Fuel Deliveries receipts and costs dataset. But first, remove columns with significant missing values. In this case it is mercury_content_ppm (Column Q), secondary_transportation_mode_code(Column R), and natural_gas_delivery_contract_type_code(Column T). Initially we have 21 columns, including the rowiD. This time, after removing columns, we will expect to have 18 columns total including rowID.
+```{r}
+Power <- read.csv("/Users/allexnicolebelostrino/Desktop/Final Exam Folder/Power.csv")
+Power2 <- Power[ , -c(15,18,20)]
+ncol(Power2)
+nrow(Power2)
+
+```
+
+
+Let's ensure our dataset has both the right attributes like numerical, character, and integer.
+```{r}
+str(Power2)
+
+```
+
+
+Randomly sample 2% of the dataset 
+```{r}
+set.seed(3548)
+total_rows <- nrow(Power2)
+sample.size <- round(0.02 * total_rows)
+sample.data <- Power2[sample(1:total_rows, size = sample.size, replace = FALSE), ]
+
+```
+
+
+Partition 70% of the sample data into training and the rest as test.
+```{r}
+#install.packages("caret")
+#install.packages("ggplot2")
+#install.packages("lattice")
+library(caret)
+
+#Create index for data partitioning
+set.seed(3548)
+index <- createDataPartition(y = 1:nrow(sample.data), p = 0.7, list = FALSE)
+
+#Create training and testing
+train <- sample.data[index, ]
+test <- sample.data[-index, ]
+```
+
+
+Training set should be about 9,000 and test set should be about 3,000
+```{r}
+
+#Training set
+length(train)
+
+
+#Test Set
+length(test)
+
+nrow(train)
+nrow(test)
+```
+When checking from the data frame, training has 9,291 items while test has 3,980. Both sets have 18 columns.
+
+
+Question 1: Which type of transportation is mostly used for delivering different fuels? (Coal, Gas, and Oil)
+```{r}
+transpo.data <- table(sample.data$fuel_type_code_pudl, sample.data$primary_transportation_mode_code)
+barplot(transpo.data, beside = TRUE,
+        legend.text = TRUE,
+        col = c("pink", "skyblue", "yellow"),
+        main = "Which type of transportation is used for delivering different fuels?",
+        xlab = "Transportation Modes" , ylab = "Frequency")
+
+```
+In this bar plot, we compare the three types of fuels and their transportation differences. 
+
+
+Question 2: What information is revealed by clustering? Use any and all variables to describe and identify the clusters. 
+```{r}
+
+#grab data
+set.seed(3000)
+sample.data <- data.frame(
+  ash_content_pct = rnorm(1000),
+  fuel_received_units = rnorm(1000)
+) 
+
+#choose number of k
+k <- 4
+
+#do the clustering
+kmeans.result <- kmeans(sample.data, centers = k)
+
+cluster.assign <- kmeans.result$cluster
+
+centroids <- kmeans.result$centers
+
+
+#do the viz for kmeans
+plot(
+  sample.data$ash_content_pct,
+ sample.data$fuel_received_units,
+  col = cluster.assign,
+  pch = 20,
+  main = "Cluster of fuels received by plant and its ash content",
+  xlab = "Ash Content",
+  ylab = "Fuel Received in units"
+)
+
+points(centroids[ , 1], centroids[ ,2], col = 1:k, pch = 3, cex = 2)
+
+```
+for this cluster, I chose k = 4. However, by mere looking at the plot, I can tell that I should retain or lower the number of k since there are points that seem to be close to one another that should be a part of a cluster that is too far from them. If we chose a smaller number, we would have a more sensitive and accurate grouping.
+
+
+Question 3: How should the value for the number of clusters be chosen?
+```{r}
+
+#Elbow method
+#install.packages("factoextra")
+library(factoextra)
+sample.data <- scale(sample.data)
+fviz_nbclust(sample.data, kmeans, method = "wss")
+
+```
+For choosing the optimal number of k, it is evident that in the elbow method there is a bend at k = 3
+
+
+```{r}
+
+#Silhouette method
+fviz_nbclust(sample.data, kmeans, method = "silhouette")
+
+
+```
+For this method, it suggests that the optimal number of k should be 7, which was the same as our theory in the previous chunk.
+
+
+We will then re-do the clustering using k=3
+```{r}
+
+set.seed(3000)
+sample.data <- data.frame(
+  ash_content_pct = rnorm(1000),
+  fuel_received_units = rnorm(1000)
+) 
+
+#choose number of k
+k <- 3
+
+#do the clustering
+kmeans.result <- kmeans(sample.data, centers = k)
+
+cluster.assign <- kmeans.result$cluster
+
+centroids <- kmeans.result$centers
+
+
+#do the viz for kmeans
+plot(
+  sample.data$ash_content_pct,
+ sample.data$fuel_received_units,
+  col = cluster.assign,
+  pch = 20,
+  main = "Cluster of fuels received by plant and its ash content",
+  xlab = "Ash Content",
+  ylab = "Fuel Received in units"
+)
+
+points(centroids[ , 1], centroids[ ,2], col = 1:k, pch = 3, cex = 2)
+```
